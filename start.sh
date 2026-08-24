@@ -14,6 +14,6 @@ exec sudo -n .pixi/envs/default/bin/python -u stream_to_pico.py \
     --encoder libx264 \
     --width 1024 \
     --height 768 \
-    --fps 30 \
+    --fps 60 \
     --view-mode mono \
     --bitrate 4M
