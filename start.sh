@@ -30,9 +30,12 @@ sleep 3
 
 if [ "$MODE" = "viewer" ]; then
   # 2. 本机查看窗口: 模拟 XRoboToolkit 连本机桥 13579
-  exec env DISPLAY=:1 pixi run python live_view.py \
+  env DISPLAY=:1 pixi run python live_view.py \
       --server 127.0.0.1 --server-port 13579 \
-      --width 2048 --height 768 --fps 30
+      --width 2048 --height 768 --fps 30 &
+  VIEWER=$!
+  trap 'pkill -f stream_bridge_pico.py; pkill -f live_view.py' INT TERM
+  wait
 fi
 
 # 2. fake Pico 信号 (收流保存 /tmp/fake_pico.h264)
@@ -42,6 +45,6 @@ pixi run python sim_pico.py --server 127.0.0.1 --server-port 13579 \
 FAKE=$!
 echo "[launch] pc 桥 + fake Pico 信号已启动 (Ctrl+C 退出; 收流: /tmp/fake_pico.h264)"
 
-trap 'kill $BRIDGE $FAKE 2>/dev/null; wait 2>/dev/null' INT TERM
+trap 'kill $BRIDGE $FAKE 2>/dev/null; pkill -f stream_bridge_pico.py; pkill -f sim_pico.py; wait 2>/dev/null' INT TERM
 wait
 echo "[launch] 已退出"
