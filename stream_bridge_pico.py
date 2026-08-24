@@ -159,7 +159,8 @@ class Subscriber:
                   f"请求 {args.subscribe_width}x{args.subscribe_height}"
                   f"@{args.subscribe_fps}fps, 本机回连 {self.ip}:"
                   f"{args.subscribe_port}", flush=True)
-            s.close()
+            # 命令连接保持打开: 发送端在收流期间用它维持推流线程
+            # (收到连接断开即 stop 推流), 收流结束后由内层 finally 关闭
 
             # 3. 等待流服务器回连推流 (超时则继续等, 不视为断连)
             conn = None
