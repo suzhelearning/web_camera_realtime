@@ -4,5 +4,5 @@
     --width 1024 \
     --height 768 \
     --fps 30 \
-    --view-mode stereo \
+    --view-mode mono \
     --bitrate 4M
