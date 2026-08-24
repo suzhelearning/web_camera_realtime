@@ -3,6 +3,6 @@
     --encoder libx264 \
     --width 1024 \
     --height 768 \
-    --fps 60 \
-    --view-mode mono \
-    --bitrate 2M
+    --fps 30 \
+    --view-mode stereo \
+    --bitrate 4M
