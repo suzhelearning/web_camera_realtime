@@ -155,7 +155,8 @@ def main():
                 f"码率 {bitrate:5.2f}Mbps | 已收 {stats['frames']}帧")
         if dropped:
             line += f" | 丢弃 {dropped}帧"
-        print(f"\r{line}{' ' * 20}", end="", flush=True)
+        # 换行滚动输出 (不清屏), 便于回顾历史统计
+        print(line, flush=True)
         last = now
 
     try:
