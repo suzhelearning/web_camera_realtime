@@ -1,0 +1,1 @@
+pixi run python stream_to_pico.py --device /dev/video0 --encoder libx264 --width 1280 --height 1024
