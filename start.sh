@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# 启动 Pico 摄像头实时查看器 (pixi 环境, 前台运行, Ctrl+C 退出)
-# 用法: ./start.sh [盒子IP]    默认 192.168.50.100
+# 启动 Pico 图像桥: 订阅 3588 数据发送端 (默认 192.168.50.83:13579) 的流,
+# mono-to-sbs 处理后连接 Pico XRoboToolkit 推流 (监听 13579 等待其连入).
+# 用法: ./start.sh [额外参数, 如 --source-host 192.168.50.83 --preview]
 set -u
 cd "$(dirname "$0")"
 
-SERVER_IP="${1:-192.168.50.100}"
-
-pkill -f live_view.py 2>/dev/null
+pkill -f stream_bridge_pico.py 2>/dev/null
 sleep 1
 
-exec env DISPLAY=:1 pixi run python live_view.py --server "$SERVER_IP"
+exec pixi run python stream_bridge_pico.py "$@"
