@@ -13,7 +13,7 @@
 
 用法:
   python stream_bridge_pico.py                       # 默认连 192.168.50.83:13579
-  python stream_bridge_pico.py --source-host 192.168.50.83 --preview
+  python stream_bridge_pico.py --source-host 192.168.50.21 --preview
 """
 import argparse
 import fcntl
@@ -452,7 +452,7 @@ def detect_local_ip(host):
 def main():
     ap = argparse.ArgumentParser(
         description="Pico 图像桥: 订阅 3588 流 -> SBS 处理 -> 连接 Pico 推流")
-    ap.add_argument("--source-host", default="192.168.50.83",
+    ap.add_argument("--source-host", default="192.168.50.21",
                     help="数据发送端 (3588) 地址, 默认 192.168.50.83")
     ap.add_argument("--source-port", type=int, default=13579,
                     help="数据发送端 OPEN_CAMERA 端口, 默认 13579")
