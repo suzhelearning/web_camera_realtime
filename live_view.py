@@ -2,9 +2,10 @@
 """Live OpenCV window showing the remote Pico camera stream.
 
 Simulates the Pico XRoboToolkit client: OPEN_CAMERA to the stream server,
-receives [4BE len][H.264] frames on a local listener, decodes via cv2 and
-shows them in a window in real time. The terminal shows a live status
-line: playback fps, incoming fps, network jitter, backlog, bitrate.
+receives [4BE len][H.264] frames on a local listener, decodes via PyAV
+from a FIFO and shows them in a window in real time. The terminal shows a
+live status line: playback fps, incoming fps, network jitter, backlog,
+bitrate.
 """
 import argparse
 import fcntl
@@ -14,6 +15,7 @@ import struct
 import threading
 import time
 
+import av
 import cv2
 
 
@@ -47,7 +49,7 @@ def recv_exact(conn, n):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--server", default="192.168.50.100")
+    ap.add_argument("--server", default="192.168.50.21")
     ap.add_argument("--server-port", type=int, default=13579)
     ap.add_argument("--listen-port", type=int, default=13581)
     ap.add_argument("--ip", default=None, help="本机局域网 IP，服务器回连用")
@@ -84,7 +86,7 @@ def main():
         ls.listen(1)
         conn, addr = ls.accept()
         print(f"[media] 推流连接来自: {addr}", flush=True)
-        writer = open(args.fifo, "wb")
+        writer = os.fdopen(os.open(args.fifo, os.O_WRONLY), "wb", 0)
         try:
             fcntl.fcntl(writer.fileno(), fcntl.F_SETPIPE_SZ, args.pipe_size)
         except OSError as exc:
@@ -124,8 +126,8 @@ def main():
                                 "ZED Mini"))
     print(f"[ctl] OPEN_CAMERA -> {args.server}:{args.server_port}", flush=True)
 
-    cap = cv2.VideoCapture(args.fifo)
-    if not cap.isOpened():
+    container = av.open(args.fifo, "r", format="h264")
+    if not container.streams.video:
         print("[err] 无法打开视频流", flush=True)
         return 1
 
@@ -136,43 +138,52 @@ def main():
     dropped = 0
     prev_in = 0
     prev_shown = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            time.sleep(0.01)
-            continue
-        consumed += 1
-        if stats["frames"] - consumed > args.max_backlog:
-            dropped += 1
-            continue  # 积压超限: 丢弃本帧不显示, 追回实时
-        shown += 1
-        cv2.imshow(window, frame)
-        key = cv2.waitKey(1) & 0xFF
-        now = time.time()
-        if now - last >= 2:
-            dt = now - last
-            in_rate = (stats["frames"] - prev_in) / dt
-            out_rate = (shown - prev_shown) / dt
-            prev_in = stats["frames"]
-            prev_shown = shown
-            backlog = stats["frames"] - consumed
-            bitrate = stats["bytes"] * 8 / (now - stats["t0"]) / 1e6
-            line = (f"[view] 播放 {out_rate:5.1f}fps | 入流 {in_rate:5.1f}fps | "
-                    f"抖动 {stats['jitter'] * 1000:5.1f}ms | 积压 {backlog:4d}帧 | "
-                    f"码率 {bitrate:5.2f}Mbps | 已收 {stats['frames']}帧")
-            if dropped:
-                line += f" | 丢弃 {dropped}帧"
-            print(f"\r{line}{' ' * 20}", end="", flush=True)
-            last = now
-        if key in (27, ord("q")):
-            break
+
+    def show_stats(now):
+        nonlocal last, prev_in, prev_shown
+        if now - last < 2:
+            return
+        dt = now - last
+        in_rate = (stats["frames"] - prev_in) / dt
+        out_rate = (shown - prev_shown) / dt
+        prev_in = stats["frames"]
+        prev_shown = shown
+        backlog = stats["frames"] - consumed
+        bitrate = stats["bytes"] * 8 / (now - stats["t0"]) / 1e6
+        line = (f"[view] 播放 {out_rate:5.1f}fps | 入流 {in_rate:5.1f}fps | "
+                f"抖动 {stats['jitter'] * 1000:5.1f}ms | 积压 {backlog:4d}帧 | "
+                f"码率 {bitrate:5.2f}Mbps | 已收 {stats['frames']}帧")
+        if dropped:
+            line += f" | 丢弃 {dropped}帧"
+        print(f"\r{line}{' ' * 20}", end="", flush=True)
+        last = now
+
+    try:
+        for frame in container.decode(video=0):
+            now = time.time()
+            consumed += 1
+            if stats["frames"] - consumed > args.max_backlog:
+                dropped += 1
+                continue  # 积压超限: 丢弃本帧不显示, 追回实时
+            shown += 1
+            cv2.imshow(window, frame.to_ndarray(format="bgr24"))
+            key = cv2.waitKey(1) & 0xFF
+            if key in (27, ord("q")):
+                break
+            show_stats(now)
+    except (av.error.EOFError, StopIteration):
+        show_stats(time.time())
+        print("\n[media] 视频流已结束", flush=True)
 
     print(flush=True)
-    cap.release()
+    container.close()
     cv2.destroyAllWindows()
     s.close()
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print("\n[view] 已退出 (Ctrl+C)", flush=True)
